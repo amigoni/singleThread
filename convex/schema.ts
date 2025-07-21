@@ -7,6 +7,7 @@ export default defineSchema({
   notes: defineTable({
     content: v.string(),
     updatedTime: v.number(),
+    userId: v.id("users"),
     imageId: v.optional(v.id("_storage")),
     linkMetadata: v.optional(v.object({
       url: v.string(),
@@ -15,7 +16,7 @@ export default defineSchema({
       icon: v.optional(v.string()),
       image: v.optional(v.string()),
     })),
-  }),
+  }).index("by_user", ["userId"]),
   messages: defineTable({
     content: v.string(),
     threadId: v.id("threads"),

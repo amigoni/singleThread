@@ -2,60 +2,117 @@
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
 
 export function SignInForm() {
   const { signIn } = useAuthActions();
   const { toast } = useToast();
-  const [flow, setFlow] = useState<"signIn" | "signUp">("signIn");
   const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    
+    try {
+      const formData = new FormData(e.target as HTMLFormElement);
+      formData.set("flow", "signIn");
+      await signIn("password", formData);
+      
+      toast({
+        title: "Signed in successfully!",
+        description: "Welcome to SingleThread",
+      });
+    } catch (error) {
+      console.error("Authentication error:", error);
+      
+      let errorMessage = "Invalid email or password. Please try again.";
+      
+      // Handle specific error cases
+      if (error instanceof Error) {
+        if (error.message.includes("Invalid credentials")) {
+          errorMessage = "Invalid email or password. Please try again.";
+        } else if (error.message.includes("User not found")) {
+          errorMessage = "Account not found. Please check your email address.";
+        }
+      }
+      
+      toast({
+        title: "Sign-in failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleAnonymousSignIn = async () => {
+    setSubmitting(true);
+    try {
+      await signIn("anonymous");
+      toast({
+        title: "Signed in anonymously!",
+        description: "Welcome to SingleThread",
+      });
+    } catch (error) {
+      console.error("Anonymous sign-in error:", error);
+      toast({
+        title: "Anonymous sign-in failed",
+        description: "Please try again or use email/password sign-in.",
+        variant: "destructive",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <div className="w-full">
       <form
         className="flex flex-col gap-4"
-        onSubmit={(e) => {
-          e.preventDefault();
-          setSubmitting(true);
-          const formData = new FormData(e.target as HTMLFormElement);
-          formData.set("flow", flow);
-          void signIn("password", formData).catch((_error) => {
-            const toastTitle =
-              flow === "signIn"
-                ? "Could not sign in, did you mean to sign up?"
-                : "Could not sign up, did you mean to sign in?";
-            toast({
-              title: toastTitle,
-              description: "Please try again.",
-              variant: "destructive",
-            });
-            setSubmitting(false);
-          });
-        }}
+        onSubmit={handleSubmit}
       >
-        <input className="input-field" type="email" name="email" placeholder="Email" required />
-        <input className="input-field" type="password" name="password" placeholder="Password" required />
-        <button className="auth-button" type="submit" disabled={submitting}>
-          {flow === "signIn" ? "Sign in" : "Sign up"}
-        </button>
-        <div className="text-center text-sm text-slate-600">
-          <span>{flow === "signIn" ? "Don't have an account? " : "Already have an account? "}</span>
-          <button
-            type="button"
-            className="text-blue-500 cursor-pointer"
-            onClick={() => setFlow(flow === "signIn" ? "signUp" : "signIn")}
-          >
-            {flow === "signIn" ? "Sign up instead" : "Sign in instead"}
-          </button>
-        </div>
+        <Input 
+          type="email" 
+          name="email" 
+          placeholder="Email" 
+          required 
+          className="h-10"
+          disabled={submitting}
+        />
+        <Input 
+          type="password" 
+          name="password" 
+          placeholder="Password" 
+          required 
+          className="h-10"
+          disabled={submitting}
+        />
+        <Button 
+          type="submit" 
+          disabled={submitting}
+          className="h-10"
+        >
+          {submitting ? "Signing in..." : "Sign in"}
+        </Button>
       </form>
-      <div className="flex items-center justify-center my-3">
-          <hr className="my-4 grow" />
-          <span className="mx-4 text-slate-400 ">or</span>
-          <hr className="my-4 grow" />
-        </div>
-        <button className="auth-button" onClick={() => void signIn("anonymous")}>
-          Sign in anonymously
-        </button>
+      
+      <div className="flex items-center my-6">
+        <Separator className="flex-1" />
+        <span className="mx-4 text-slate-400 text-sm">or</span>
+        <Separator className="flex-1" />
+      </div>
+      
+      <Button 
+        variant="outline" 
+        onClick={handleAnonymousSignIn}
+        disabled={submitting}
+        className="w-full h-10"
+      >
+        {submitting ? "Loading..." : "Sign in anonymously"}
+      </Button>
     </div>
   );
 }

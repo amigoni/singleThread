@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { action } from "./_generated/server";
 import { internal, api } from "./_generated/api";
+import { getAuthUserId } from "@convex-dev/auth/server";
 import OpenAI from "openai";
 
 const openai = new OpenAI({
@@ -15,6 +16,9 @@ export const askAI = action({
     question: v.string(),
   },
   handler: async (ctx, args) => {
+    // Note: Actions don't have access to ctx.db, so we can't check authentication here
+    // The authentication check should be done in the calling function
+    
     // First add the user's question as a message
     await ctx.runMutation(internal.messages.sendInternalMessage, {
       threadId: args.threadId,

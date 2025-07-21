@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { mutation, query, internalQuery, action } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { api } from "./_generated/api";
+import { getAuthUserId } from "@convex-dev/auth/server";
 
 export const add = mutation({
   args: {
@@ -9,9 +10,15 @@ export const add = mutation({
     imageId: v.optional(v.id("_storage")),
   },
   handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("Not authenticated");
+    }
+
     const noteId = await ctx.db.insert("notes", {
       content: args.content,
       updatedTime: Date.now(),
+      userId,
       ...(args.imageId ? { imageId: args.imageId } : {}),
     });
 
@@ -33,6 +40,17 @@ export const update = mutation({
     imageId: v.optional(v.id("_storage")),
   },
   handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("Not authenticated");
+    }
+
+    // Verify the note belongs to the current user
+    const note = await ctx.db.get(args.noteId);
+    if (!note || note.userId !== userId) {
+      throw new Error("Not authorized to update this note");
+    }
+
     await ctx.db.patch(args.noteId, {
       content: args.content,
       updatedTime: Date.now(),
@@ -44,7 +62,17 @@ export const update = mutation({
 export const list = query({
   args: {},
   handler: async (ctx) => {
-    const notes = await ctx.db.query("notes").order("desc").collect();
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      return [];
+    }
+
+    const notes = await ctx.db
+      .query("notes")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .order("desc")
+      .collect();
+    
     return Promise.all(
       notes.map(async (note) => ({
         ...note,
@@ -59,8 +87,16 @@ export const getNote = query({
     noteId: v.id("notes"),
   },
   handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      return null;
+    }
+
     const note = await ctx.db.get(args.noteId);
-    if (!note) return null;
+    if (!note || note.userId !== userId) {
+      return null;
+    }
+
     return {
       ...note,
       imageUrl: note.imageId ? await ctx.storage.getUrl(note.imageId) : null,
@@ -71,6 +107,11 @@ export const getNote = query({
 export const generateUploadUrl = mutation({
   args: {},
   handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("Not authenticated");
+    }
+
     return await ctx.storage.generateUploadUrl();
   },
 });
@@ -80,6 +121,17 @@ export const getOrCreateThread = mutation({
     noteId: v.id("notes"),
   },
   handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("Not authenticated");
+    }
+
+    // Verify the note belongs to the current user
+    const note = await ctx.db.get(args.noteId);
+    if (!note || note.userId !== userId) {
+      throw new Error("Not authorized to access this note");
+    }
+
     const existingThread = await ctx.db
       .query("threads")
       .withIndex("by_note", (q) => q.eq("noteId", args.noteId))
@@ -102,6 +154,8 @@ export const fetchLinkMetadata = action({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
+    // Note: Actions don't have access to ctx.db, so we can't check authentication here
+    // The authentication check should be done in the calling function
     try {
       const response = await fetch(args.url);
       const html = await response.text();
@@ -184,6 +238,17 @@ export const updateLinkMetadata = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("Not authenticated");
+    }
+
+    // Verify the note belongs to the current user
+    const note = await ctx.db.get(args.noteId);
+    if (!note || note.userId !== userId) {
+      throw new Error("Not authorized to update this note");
+    }
+
     await ctx.db.patch(args.noteId, {
       linkMetadata: args.linkMetadata,
     });
@@ -198,10 +263,16 @@ export const createNote = mutation({
   },
   returns: v.id("notes"),
   handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("Not authenticated");
+    }
+
     const noteId = await ctx.db.insert("notes", {
       content: args.content,
       imageId: args.imageId,
       updatedTime: Date.now(),
+      userId,
     });
 
     // Check if content contains a URL and schedule metadata fetching
@@ -221,6 +292,17 @@ export const deleteNote = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("Not authenticated");
+    }
+
+    // Verify the note belongs to the current user
+    const note = await ctx.db.get(args.noteId);
+    if (!note || note.userId !== userId) {
+      throw new Error("Not authorized to delete this note");
+    }
+
     // Delete the associated thread first
     const thread = await ctx.db
       .query("threads")
