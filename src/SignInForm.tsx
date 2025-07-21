@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
 
 export function SignInForm() {
   const { signIn } = useAuthActions();
@@ -48,26 +47,6 @@ export function SignInForm() {
     }
   };
 
-  const handleAnonymousSignIn = async () => {
-    setSubmitting(true);
-    try {
-      await signIn("anonymous");
-      toast({
-        title: "Signed in anonymously!",
-        description: "Welcome to SingleThread",
-      });
-    } catch (error) {
-      console.error("Anonymous sign-in error:", error);
-      toast({
-        title: "Anonymous sign-in failed",
-        description: "Please try again or use email/password sign-in.",
-        variant: "destructive",
-      });
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   return (
     <div className="w-full">
       <form
@@ -98,21 +77,6 @@ export function SignInForm() {
           {submitting ? "Signing in..." : "Sign in"}
         </Button>
       </form>
-      
-      <div className="flex items-center my-6">
-        <Separator className="flex-1" />
-        <span className="mx-4 text-slate-400 text-sm">or</span>
-        <Separator className="flex-1" />
-      </div>
-      
-      <Button 
-        variant="outline" 
-        onClick={handleAnonymousSignIn}
-        disabled={submitting}
-        className="w-full h-10"
-      >
-        {submitting ? "Loading..." : "Sign in anonymously"}
-      </Button>
     </div>
   );
 }
